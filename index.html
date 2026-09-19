@@ -527,15 +527,25 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 // ===================== VOLUMES =====================
 async function loadVolumes() {
   volumes = await dbGetAll('volumes');
-  // Calcola pageOffset
   let offset = 0;
-  volumes.forEach(v => {
+
+  for (let v of volumes) {
     v.pageOffset = offset;
     offset += v.totalPages;
-  });
+    
+    // Ricrea il documento PDF in memoria (senza salvarlo nel DB)
+    try {
+      const arrayBuffer = await v.blob.arrayBuffer();
+      v.pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+    } catch(e) {
+      console.error("Errore caricamento PDF per " + v.name, e);
+    }
+  }
+
   totalPages = offset;
   updateVolumeSelectors();
   updateVolumesList();
+  
   if (volumes.length > 0 && !currentVolumeId) {
     currentVolumeId = volumes[0].id;
     pdfDoc = volumes[0].pdfDoc;
@@ -613,14 +623,13 @@ async function addVolume(file) {
       name: file.name.replace('.pdf',''),
       blob: file,
       totalPages: numPages,
-      pages: pages,
-      pdfDoc: pdf
+      pages: pages
     };
 
     await dbPut('volumes', volume);
     await loadVolumes();
     currentVolumeId = volume.id;
-    pdfDoc = volume.pdfDoc;
+    pdfDoc = pdf;
     buildSearchIndex();
     updateSettingsInfo();
 
