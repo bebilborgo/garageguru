@@ -177,8 +177,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 #page-info { color: var(--muted); font-size: 13px; margin: 0 8px; }
 #zoom-info { text-align: center; color: var(--muted); font-size: 11px; padding: 4px; }
 #pdf-canvas-wrap {
-  flex: 1; overflow: auto; display: flex; justify-content: center;
+  flex: 1;
+  overflow: auto;
   padding: 10px;
+  background: var(--bg);
+  -webkit-overflow-scrolling: touch; /* scroll fluido su iOS */
 }
 #pdf-canvas-wrap canvas {
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -756,16 +759,23 @@ async function renderPage(num) {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
-  const screenWidth = window.innerWidth - 40;
   const viewport1 = page.getViewport({scale: 1});
-  const baseScale = screenWidth / viewport1.width;
+  // Base scale: 1 su mobile, 1.5 su PC
+  const baseScale = window.innerWidth < 768 ? 1 : 1.5;
   const scale = baseScale * currentZoom;
   const viewport = page.getViewport({scale});
 
+  // Imposta dimensioni REALI del canvas (in pixel)
   canvas.width = viewport.width;
   canvas.height = viewport.height;
+  
+  // Imposta anche lo stile CSS alle stesse dimensioni (no stretching!)
+  canvas.style.width = viewport.width + 'px';
+  canvas.style.height = viewport.height + 'px';
+  
   await page.render({canvasContext: ctx, viewport}).promise;
   document.getElementById('page-info').textContent = `${num} / ${pdfDoc.numPages}`;
+  wrap.scrollLeft = 0;
   wrap.scrollTop = 0;
 
   const zoomPercent = Math.round(currentZoom * 100);
