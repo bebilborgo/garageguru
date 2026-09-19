@@ -6,7 +6,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>GarageGuru</title>
-<link rel="apple-touch-icon" href="icon.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root[data-theme="dark"] {
@@ -376,8 +375,11 @@
   <div id="pdf-canvas-wrap"></div>
   <div id="pdf-nav">
     <button onclick="gotoPage(currentPage-1)">◀ Prec</button>
+    <button onclick="changeZoom(-0.25)">➖</button>
+    <button onclick="changeZoom(0.25)">➕</button>
     <button onclick="gotoPage(currentPage+1)">Succ ▶</button>
   </div>
+  <div id="zoom-info" style="text-align:center;color:var(--muted);font-size:11px;padding:4px;">Zoom: 100%</div>
 </div>
 
 <!-- PROGRESS MODAL -->
@@ -465,6 +467,7 @@ const STOPWORDS = new Set([
 let pdfDoc = null;
 let pdfBuffer = null;
 let currentPage = 1;
+let currentZoom = 1;
 let totalPages = 0;
 let pageIndex = [];
 let tocEntries = [];
@@ -1089,7 +1092,8 @@ async function renderPage(num) {
   
   const screenWidth = window.innerWidth - 20;
   const viewport1 = page.getViewport({ scale: 1 });
-  const scale = screenWidth / viewport1.width;
+  const baseScale = screenWidth / viewport1.width;
+  const scale = baseScale * currentZoom;
   const viewport = page.getViewport({ scale });
   
   canvas.width = viewport.width;
@@ -1097,6 +1101,11 @@ async function renderPage(num) {
   await page.render({ canvasContext: ctx, viewport }).promise;
   document.getElementById('page-info').textContent = `${num} / ${totalPages}`;
   wrap.scrollTop = 0;
+
+  // Aggiorna indicatore zoom
+  const zoomPercent = Math.round(currentZoom * 100);
+  const zoomInfo = document.getElementById('zoom-info');
+  if (zoomInfo) zoomInfo.textContent = `Zoom: ${zoomPercent}%`;
 }
 
 async function openPDFPage(num) {
@@ -1117,6 +1126,13 @@ async function gotoPage(num) {
   if (num < 1 || num > totalPages || !pdfDoc) return;
   currentPage = num;
   await renderPage(num);
+}
+
+async function changeZoom(delta) {
+  const newZoom = currentZoom + delta;
+  if (newZoom < 0.5 || newZoom > 4) return; // limiti zoom: 50% - 400%
+  currentZoom = newZoom;
+  await renderPage(currentPage);
 }
 
 // ===================== LLM (GROQ) =====================
