@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GarageGuru</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root[data-theme="dark"] {
+    --bg: #0f1419; --panel: #1a2028; --panel2: #232b36; --border: #2d3744;
+    --text: #e6edf3; --muted: #8b949e; --accent: #ff6b35; --accent2: #4ecdc4;
+    --highlight: #ffd93d; --viewer-bg: #2a2a2a; --input-bg: #232b36;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7fa; --panel: #ffffff; --panel2: #f0f2f5; --border: #d0d7de;
+    --text: #1f2328; --muted: #656d76; --accent: #d84315; --accent2: #00897b;
+    --highlight: #fff176; --viewer-bg: #e4e4e4; --input-bg: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; overflow: hidden;
+    transition: background 0.2s, color 0.2s; -webkit-tap-highlight-color: transparent;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  
+  /* HEADER */ 
+  #header {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 16px 20px; display: flex; align-items: center;
+    flex-shrink: 0; min-height: 64px;
+  }
+  #header-left { 
+    flex: 3; 
+    display: flex; 
+    flex-direction: column; 
+    padding-right: 20px;
+  }
+  #header h1 { 
+    font-size: 24px; 
+    color: var(--text); 
+    margin: 0; 
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #header .sub { 
+    font-size: 12px; 
+    color: var(--muted); 
+    margin-top: 4px; 
+  }
+  #theme-toggle {
+    flex: 1;
+    background: var(--panel); 
+    border: 1px solid var(--border); 
+    border-radius: 10px;
+    height: 48px; 
+    cursor: pointer; 
+    font-size: 24px;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    color: var(--text);
+    max-width: 80px;
+  }
+  /* CONTENT */
+  #content { flex: 1; overflow: hidden; position: relative; }
+  .tab-content {
+    display: none; flex-direction: column; height: 100%; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-content.active { display: flex; }
+  
+  /* TAB BAR */
+  #tab-bar {
+    background: var(--panel); border-top: 1px solid var(--border);
+    display: flex; flex-shrink: 0; padding: 8px 0;
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none; color: var(--muted);
+    font-size: 11px; padding: 8px 4px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: color 0.15s;
+  }
+  .tab-btn.active { color: var(--accent); }
+  .tab-btn .icon { font-size: 20px; }
+  
+  /* SEARCH TAB */
+  #search-area { padding: 12px; border-bottom: 1px solid var(--border); }
+  #search-input {
+    width: 100%; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
+    font-size: 16px; outline: none;
+  }
+  #search-input:focus { border-color: var(--accent); }
+  #controls { display: flex; gap: 8px; margin-top: 10px; }
+  button {
+    padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); cursor: pointer; font-size: 13px;
+    transition: all 0.15s; flex: 1; min-height: 44px;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.accent2 { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  #results { flex: 1; overflow-y: auto; padding: 8px; position: relative; z-index: 1; }
+  #logo-watermark {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 280px; max-height: 280px;
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+  }
+  .result {
+    padding: 12px; margin-bottom: 8px; border-radius: 10px;
+    background: var(--panel2); cursor: pointer; border: 1px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .result:active { border-color: var(--accent); }
+  .result .page { color: var(--accent); font-weight: 600; font-size: 13px; }
+  .result .snippet { color: var(--text); font-size: 14px; margin-top: 6px; line-height: 1.5; }
+  .result mark { background: var(--highlight); color: #000; padding: 0 3px; border-radius: 3px; }
+  #llm-answer {
+    padding: 14px; margin: 8px; background: var(--panel2); border-radius: 10px;
+    border-left: 3px solid var(--accent2); font-size: 14px; line-height: 1.6;
+    white-space: pre-wrap; max-height: 50vh; overflow-y: auto;
+  }
+  #llm-answer .src { color: var(--accent); font-weight: 600; cursor: pointer; }
+  .empty { padding: 30px 20px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  #file-input { display: none; }
+  .tag { display: inline-block; background: var(--border); padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; color: var(--muted); }
+  
+  /* TOC TAB */
+  #toc-list { padding: 8px; }
+  .toc-item {
+    padding: 12px; margin-bottom: 6px; border-radius: 10px;
+    background: var(--panel2); cursor: pointer; border: 1px solid transparent;
+  }
+  .toc-item:active { border-color: var(--accent); }
+  .toc-item .title { font-size: 14px; margin-bottom: 4px; }
+  .toc-item .page { color: var(--accent); font-size: 12px; }
+  .toc-item.level-1 { padding-left: 12px; }
+  .toc-item.level-2 { padding-left: 24px; font-size: 13px; }
+  .toc-item.level-3 { padding-left: 36px; font-size: 12px; color: var(--muted); }
+  
+  /* SETTINGS TAB */
+  .settings-group { padding: 16px; border-bottom: 1px solid var(--border); }
+  .settings-group h3 { margin: 0 0 12px; font-size: 15px; color: var(--accent); }
+  .settings-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; margin-top: 10px; }
+  .settings-group input[type="text"], .settings-group input[type="password"], .settings-group select {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--input-bg); color: var(--text); font-size: 14px;
+  }
+  .settings-group .hint { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .settings-group button { margin-top: 10px; }
+  .info-box {
+    background: var(--panel2); border-radius: 8px; padding: 12px; margin-top: 10px;
+    font-size: 13px; line-height: 1.6;
+  }
+  .info-box .label { color: var(--muted); }
+  .info-box .value { color: var(--text); font-weight: 600; }
+  .warning {
+    background: rgba(255, 107, 53, 0.1); border-left: 3px solid var(--accent);
+    padding: 12px; border-radius: 8px; margin-top: 10px; font-size: 12px; line-height: 1.5;
+  }
+  
+  /* PDF VIEWER OVERLAY */
+  #pdf-viewer {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--viewer-bg); z-index: 1000; display: none;
+    flex-direction: column;
+  }
+  #pdf-viewer.active { display: flex; }
+  #pdf-header {
+    background: var(--panel); padding: 12px; display: flex; justify-content: space-between;
+    align-items: center; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  #pdf-header button { flex: 0; padding: 8px 12px; font-size: 14px; min-height: 36px; }
+  #page-info { font-size: 14px; color: var(--text); }
+  #pdf-canvas-wrap {
+    flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start;
+    padding: 10px; -webkit-overflow-scrolling: touch;
+  }
+  #pdf-canvas-wrap canvas { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 100%; height: auto; }
+  #pdf-nav {
+    background: var(--panel); padding: 10px; display: flex; justify-content: center;
+    gap: 12px; border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  #pdf-nav button { flex: 0; padding: 10px 20px; font-size: 16px; min-height: 44px; }
+  
+  /* ===================== PROGRESS MODAL ===================== */
+  #progress-modal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85); z-index: 2000;
+    display: none; align-items: center; justify-content: center;
+    padding: 20px; backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #progress-modal.active { display: flex; }
+  #progress-modal .modal-card {
+    background: var(--panel); border-radius: 16px; padding: 28px 24px;
+    width: 100%; max-width: 360px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+  }
+  #progress-modal .modal-icon { font-size: 48px; margin-bottom: 12px; }
+  #progress-modal .modal-title {
+    font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 8px;
+  }
+  #progress-modal .modal-percent {
+    font-size: 48px; font-weight: 700; color: var(--accent);
+    margin: 12px 0; font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+  }
+  #progress-modal .modal-bar {
+    height: 8px; background: var(--panel2); border-radius: 4px;
+    overflow: hidden; margin: 12px 0;
+  }
+  #progress-modal .modal-bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%; transition: width 0.3s ease-out; border-radius: 4px;
+  }
+  #progress-modal .modal-message {
+    font-size: 13px; color: var(--muted); margin-top: 12px; line-height: 1.5;
+    min-height: 40px;
+  }
+  #progress-modal .modal-warning {
+    font-size: 11px; color: var(--accent); margin-top: 16px;
+    padding: 8px; background: rgba(255, 107, 53, 0.1); border-radius: 6px;
+  }
+  #progress-modal .spinner-large {
+    display: inline-block; width: 32px; height: 32px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin: 12px 0;
+  }
+  
+  /* STATUS TOAST (per messaggi brevi) */
+  #status {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%) translateY(100%);
+    background: rgba(0,0,0,0.85); color: #fff; padding: 8px 16px;
+    font-size: 12px; text-align: center; z-index: 999;
+    border-radius: 20px; transition: transform 0.3s; max-width: 90%;
+  }
+  #status.show { transform: translateX(-50%) translateY(0); }
+  
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--muted); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div id="header-left">
+      <h1><span style="color: var(--accent);">🔧</span> GarageGuru</h1>
+      <div class="sub">Manuale di officina intelligente</div>
+    </div>
+    <button id="theme-toggle" title="Cambia tema">🌙</button>
+  </div>
+
+  <div id="content">
+    <!-- TAB RICERCA -->
+    <div class="tab-content active" id="tab-search">
+      <div id="search-area">
+        <input id="search-input" type="text" placeholder="Descrivi il problema o cerca..." />
+        <div id="controls">
+          <button id="btn-open-pdf" onclick="document.getElementById('file-input').click()">📄 Apri PDF</button>
+          <button id="btn-ask-llm" class="accent2" onclick="askLLM()">💬 Chiedi a Groq</button>
+          <input type="file" id="file-input" accept="application/pdf" />
+        </div>
+      </div>
+      <div id="llm-answer" style="display:none"></div>
+      <div id="results">
+        <img id="logo-watermark" style="display:none" />
+        <div class="empty">
+          <div style="font-size:40px;margin-bottom:12px">📖</div>
+          <div>Carica il PDF del manuale per iniziare</div>
+          <div style="font-size:12px;margin-top:8px">Poi scrivi il problema o una parola chiave</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB SOMMARIO -->
+    <div class="tab-content" id="tab-toc">
+      <div id="toc-list">
+        <div class="empty">Carica un PDF per vedere il sommario.</div>
+      </div>
+    </div>
+
+    <!-- TAB IMPOSTAZIONI -->
+    <div class="tab-content" id="tab-settings">
+      <div class="settings-group">
+        <h3>📄 PDF Manuale</h3>
+        <div class="info-box">
+          <div><span class="label">Stato:</span> <span class="value" id="pdf-status">Nessun PDF caricato</span></div>
+          <div><span class="label">Dimensione:</span> <span class="value" id="pdf-size">-</span></div>
+          <div><span class="label">Pagine:</span> <span class="value" id="pdf-pages">-</span></div>
+        </div>
+        <h3 style="margin-top:16px">️ Logo Moto</h3>
+        <div class="info-box">
+          <div><span class="label">Logo:</span> <span class="value" id="logo-status">Nessun logo caricato</span></div>
+        </div>
+        <button onclick="document.getElementById('logo-input').click()">📷 Carica logo</button>
+        <button onclick="removeLogo()" style="margin-left:8px">🗑️ Rimuovi</button>
+        <input type="file" id="logo-input" accept="image/*" style="display:none" />
+        <div class="hint" style="margin-top:8px">Il logo apparirà in semitrasparenza al centro della schermata di ricerca.</div>
+        <button id="btn-change-pdf" onclick="document.getElementById('file-input').click()">📂 Cambia PDF</button>
+        <button id="btn-remove-pdf" onclick="removePDF()" style="margin-left:8px">🗑️ Rimuovi</button>
+        <div class="hint" style="margin-top:8px">Il PDF viene salvato nel browser. La prossima volta verrà caricato automaticamente.</div>
+      </div>
+      <div class="settings-group">
+        <h3>🤖 Assistente Groq (gratis)</h3>
+        <label>API Key</label>
+        <input type="password" id="llm-key" placeholder="gsk_..." />
+        <div class="hint">
+          Registrati gratis su <a href="https://console.groq.com" target="_blank" style="color:var(--accent)">console.groq.com</a><br>
+          Vai su "API Keys" → crea una key → incolla qui<br>
+          La key resta solo sul tuo telefono
+        </div>
+        <label>Modello</label>
+         <select id="llm-model">
+          <option value="qwen/qwen3.8-27b">Qwen3.8 27B (consigliato - ottimo in italiano)</option>
+          <option value="openai/gpt-oss-20b">GPT-OSS 20B (OpenAI)</option>
+          <option value="groq/compound">Groq Compound (nativo)</option>
+        </select>
+        <button onclick="saveLLMSettings()">💾 Salva</button>
+        <button onclick="testLLM()">🧪 Test</button>
+      </div>
+      <div class="settings-group">
+        <h3>ℹ️ Info</h3>
+        <div class="info-box">
+          <div><span class="label">Pagine indicizzate:</span> <span class="value" id="info-pages">0</span></div>
+          <div><span class="label">Voci sommario:</span> <span class="value" id="info-toc">0</span></div>
+          <div><span class="label">Spazio usato:</span> <span class="value" id="info-storage">-</span></div>
+        </div>
+        <div id="ios-warning" class="warning" style="display:none">
+          <strong>📱 Utente iPhone:</strong> Per evitare che iOS cancelli i dati dopo 7 giorni, aggiungi GarageGuru alla schermata Home: condividi → "Aggiungi alla schermata Home"
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-bar">
+    <button class="tab-btn active" data-tab="search">
+      <span class="icon">🔍</span>
+      <span>Ricerca</span>
+    </button>
+    <button class="tab-btn" data-tab="toc">
+      <span class="icon">📑</span>
+      <span>Sommario</span>
+    </button>
+    <button class="tab-btn" data-tab="settings">
+      <span class="icon">⚙️</span>
+      <span>Impostazioni</span>
+    </button>
+  </div>
+</div>
+
+<!-- PDF VIEWER OVERLAY -->
+<div id="pdf-viewer">
+  <div id="pdf-header">
+    <button onclick="closePDF()">✕ Chiudi</button>
+    <span id="page-info">1 / 1</span>
+    <div style="width:50px"></div>
+  </div>
+  <div id="pdf-canvas-wrap"></div>
+  <div id="pdf-nav">
+    <button onclick="gotoPage(currentPage-1)">◀ Prec</button>
+    <button onclick="gotoPage(currentPage+1)">Succ ▶</button>
+  </div>
+</div>
+
+<!-- PROGRESS MODAL -->
+<div id="progress-modal">
+  <div class="modal-card">
+    <div class="modal-icon" id="modal-icon">⚙️</div>
+    <div class="modal-title" id="modal-title">Operazione in corso</div>
+    <div id="modal-percent-wrap">
+      <div class="modal-percent" id="modal-percent">0%</div>
+      <div class="modal-bar"><div class="modal-bar-fill" id="modal-bar-fill"></div></div>
+    </div>
+    <div id="modal-spinner-wrap" style="display:none">
+      <div class="spinner-large"></div>
+    </div>
+    <div class="modal-message" id="modal-message">Attendere...</div>
+    <div class="modal-warning">⚠️ Non chiudere l'app</div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ===================== THESAURUS ITALIANO MOTO =====================
+const THESAURUS = {
+  "motore": ["propulsore","blocco","engine","cilindro","pistone","biella","albero motore","carter"],
+  "candela": ["candele","spark","scintilla","accensione","candella","sparch"],
+  "carburatore": ["carburatori","carburator","carbs","getto","gettto","vasca","galleggiante","spillo"],
+  "iniettore": ["iniettori","iniezione","injection","pompa benzina"],
+  "benzina": ["carburante","fuel","serbatoio","tank","nafta"],
+  "olio": ["lubrificante","oil","olio motore","olio cambio","10w40","10w50","15w50"],
+  "filtro aria": ["airbox","air filter","cartuccia filtro","filtro"],
+  "valvole": ["valvola","registro valvole","valvole motore","gioco valvole","valv","valvol"],
+  "frizione": ["friz","dischi frizione","campana","leva frizione","clutch","corda frizione"],
+  "cambio": ["marce","trasmissione","gear","selettore","leva cambio"],
+  "freno": ["freni","brake","pastiglie","pasticca","disco freno","pinza","pompa freno","liquido freno","olio freni","dot4"],
+  "pastiglie": ["pasticche","ganasce","ferodo","brake pad"],
+  "sospensione": ["sospensioni","sospens","forcella","fork","ammortizzatore","mono","rear shock","steli","boccole"],
+  "forcella": ["fork","steli","bracci","forcellone"],
+  "ammortizzatore": ["mono","shock","sospensione posteriore"],
+  "catena": ["kit catena","cat","pignone","corona","kit trasmissione","tendicatena"],
+  "pignone": ["corona","kit trasmissione"],
+  "ruota": ["ruote","wheel","cerchio","cerchi"],
+  "pneumatico": ["pneumatici","gomma","gomm","copertone","coperton","tire","tyre"],
+  "camera d'aria": ["camera","inner tube"],
+  "batteria": ["batter","accumulatore","battery","piombo","12v"],
+  "alternatore": ["statore","rotore","charging"],
+  "fusibile": ["fusibili","fuse","relè","relay"],
+  "luci": ["luce","faro","fan","lampadina","led","anabbagliante","abbagliante"],
+  "telaio": ["frame","telai","forcellone","swingarm"],
+  "serbatoio": ["tank","serbat"],
+  "sella": ["seat","sedile"],
+  "scarico": ["scarichi","exhaust","marmitta","siluro","collettore","db killer"],
+  "cruscotto": ["strumenti","dashboard","quadro","tachimetro","contachilometri"],
+  "tagliando": ["manutenzione","service","revisione","controllo"],
+  "coppia": ["torque","nm","serraggio","chiave dinamometrica"],
+  "liquido raffreddamento": ["refrigerante","antigelo","radiatore","water pump","pompa acqua"],
+  "radiatore": ["radiator","ventola"],
+  "non parte": ["non si avvia","non accende","non gira","avviamento","starter","motorino avviamento"],
+  "perde olio": ["perdita olio","trfila","gocciola","perdita"],
+  "rumore": ["rumori","fruscio","ticchettio","sferragliamento","rumore motore","rumore meccanico"],
+  "vibrazione": ["vibra","vibrazioni","tremore"],
+  "fumo": ["fuma","fumano","fumo bianco","fumo blu","fumo nero"],
+  "surriscalda": ["surriscaldamento","temperatura alta","bolle","overheat"],
+  "consuma olio": ["consumo olio","olio basso","consuma"],
+  "consuma benzina": ["consumi","consumo benzina","consuma troppo"],
+  "freno molle": ["freno spugnoso","freno che non frena","freni deboli"],
+  "non tira": ["punta","non ha potenza","perde potenza","calo di potenza"],
+  "cambio duro": ["marce dure","cambio che non entra","cambio impunta"],
+};
+
+const STOPWORDS = new Set([
+  "il","lo","la","i","gli","le","un","uno","una","di","del","dello","della","dei","degli","delle",
+  "a","ad","al","allo","alla","ai","agli","alle","da","dal","dallo","dalla","dai","dagli","dalle",
+  "in","nel","nello","nella","nei","negli","nelle","con","su","sul","sullo","sulla","sui","sugli","sulle",
+  "per","tra","fra","e","ed","o","ma","se","che","chi","cui","cosa","come","dove","quando","perché",
+  "sono","è","ho","hai","ha","abbiamo","avete","hanno","essere","stato","stata","questo","questa","quello",
+  "mia","tuo","suo","nostro","vostro","mio","io","tu","lui","lei","noi","voi","loro","mi","ti","si","ci","vi",
+  "non","più","meno","molto","poco","tanto","anche","ancora","già","ieri","oggi","domani","qui","là",
+  "fa","fare","fatto","della","delle","dei","degli"
+]);
+
+// ===================== STATO GLOBALE =====================
+let pdfDoc = null;
+let pdfBuffer = null;
+let currentPage = 1;
+let totalPages = 0;
+let pageIndex = [];
+let tocEntries = [];
+let isBusy = false; // flag per bloccare operazioni concorrenti
+const DB_NAME = 'garageguru_db';
+const STORE = 'index';
+
+// ===================== PROGRESS MODAL =====================
+function showProgressModal({ icon = '⚙️', title = 'Operazione in corso', percent = null, message = 'Attendere...', indeterminate = false }) {
+  const modal = document.getElementById('progress-modal');
+  document.getElementById('modal-icon').textContent = icon;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-message').textContent = message;
+  
+  const percentWrap = document.getElementById('modal-percent-wrap');
+  const spinnerWrap = document.getElementById('modal-spinner-wrap');
+  
+  if (indeterminate || percent === null) {
+    percentWrap.style.display = 'none';
+    spinnerWrap.style.display = 'block';
+  } else {
+    percentWrap.style.display = 'block';
+    spinnerWrap.style.display = 'none';
+    const p = Math.max(0, Math.min(100, Math.round(percent)));
+    document.getElementById('modal-percent').textContent = p + '%';
+    document.getElementById('modal-bar-fill').style.width = p + '%';
+  }
+  
+  modal.classList.add('active');
+}
+
+function updateProgressModal(percent, message) {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  document.getElementById('modal-percent').textContent = p + '%';
+  document.getElementById('modal-bar-fill').style.width = p + '%';
+  if (message) document.getElementById('modal-message').textContent = message;
+}
+
+function hideProgressModal() {
+  document.getElementById('progress-modal').classList.remove('active');
+}
+
+// Blocca i bottoni principali durante operazioni lunghe
+function setButtonsBusy(busy) {
+  isBusy = busy;
+  ['btn-open-pdf', 'btn-ask-llm', 'btn-change-pdf', 'btn-remove-pdf'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = busy;
+  });
+}
+
+// ===================== IndexedDB =====================
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e);
+  });
+}
+async function dbGet(key) {
+  const db = await openDB();
+  return new Promise(res => {
+    const tx = db.transaction(STORE, 'readonly');
+    const r = tx.objectStore(STORE).get(key);
+    r.onsuccess = () => res(r.result);
+  });
+}
+async function dbSet(key, val) {
+  const db = await openDB();
+  return new Promise(res => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(val, key);
+    tx.oncomplete = () => res();
+  });
+}
+async function dbDelete(key) {
+  const db = await openDB();
+  return new Promise(res => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => res();
+  });
+}
+async function dbClear() {
+  const db = await openDB();
+  return new Promise(res => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => res();
+  });
+}
+
+// ===================== STORAGE INFO =====================
+async function updateStorageInfo() {
+  if (navigator.storage && navigator.storage.estimate) {
+    const est = await navigator.storage.estimate();
+    const used = est.usage || 0;
+    const quota = est.quota || 0;
+    const usedMB = (used / 1024 / 1024).toFixed(1);
+    const quotaMB = (quota / 1024 / 1024).toFixed(0);
+    document.getElementById('info-storage').textContent = `${usedMB} MB / ${quotaMB} MB`;
+  } else {
+    document.getElementById('info-storage').textContent = 'Non disponibile';
+  }
+}
+
+// ===================== TEMA =====================
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem('gg_theme', theme);
+}
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+applyTheme(localStorage.getItem('gg_theme') || 'dark');
+
+// ===================== TABS =====================
+document.querySelectorAll('.tab-btn').forEach(t => {
+  t.addEventListener('click', () => {
+    if (isBusy) {
+      setStatus('⚠️ Attendi il completamento dell\'operazione in corso');
+      return;
+    }
+    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+  });
+});
+
+// ===================== UTILITÀ TESTO =====================
+function normalize(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({length: m+1}, () => new Array(n+1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+    }
+  }
+  return dp[m][n];
+}
+
+function fuzzyMatch(word, target) {
+  word = normalize(word); target = normalize(target);
+  if (word === target) return 1.0;
+  if (target.startsWith(word) && word.length >= 3) return 0.9;
+  if (word.startsWith(target) && target.length >= 3) return 0.85;
+  const maxDist = word.length <= 3 ? 0 : word.length <= 5 ? 1 : 2;
+  const d = levenshtein(word, target);
+  if (d <= maxDist) return 0.7 * (1 - d/Math.max(word.length, target.length));
+  return 0;
+}
+
+function extractKeywords(query) {
+  const tokens = normalize(query).split(' ').filter(t => t.length >= 2 && !STOPWORDS.has(t));
+  return tokens;
+}
+
+function expandWithSynonyms(keyword) {
+  const results = new Set([keyword]);
+  const kw = normalize(keyword);
+  for (const [concept, synonyms] of Object.entries(THESAURUS)) {
+    const all = [concept, ...synonyms].map(normalize);
+    let match = false;
+    for (const t of all) {
+      if (fuzzyMatch(kw, t) > 0.7) { match = true; break; }
+    }
+    if (match) all.forEach(s => results.add(s));
+  }
+  return [...results];
+}
+
+// ===================== SOMMARIO =====================
+async function extractTOC() {
+  tocEntries = [];
+  try {
+    const outline = await pdfDoc.getOutline();
+    if (outline && outline.length) {
+      await walkOutline(outline, 0);
+    }
+  } catch(e) { console.warn('Outline error', e); }
+
+  if (tocEntries.length === 0) {
+    detectTOCFromText();
+  }
+  renderTOC();
+  await dbSet('toc', tocEntries);
+  document.getElementById('info-toc').textContent = tocEntries.length;
+}
+
+async function walkOutline(items, level) {
+  for (const item of items) {
+    let pageNum = 0;
+    try {
+      if (item.dest) {
+        let dest = item.dest;
+        if (typeof dest === 'string') dest = await pdfDoc.getDestination(dest);
+        if (dest && dest[0]) {
+          const idx = await pdfDoc.getPageIndex(dest[0]);
+          pageNum = idx + 1;
+        }
+      }
+    } catch(e) {}
+    if (pageNum > 0) {
+      tocEntries.push({ title: item.title, page: pageNum, level });
+    }
+    if (item.items && item.items.length) {
+      await walkOutline(item.items, level + 1);
+    }
+  }
+}
+
+function detectTOCFromText() {
+  const patterns = [
+    /^(capitolo|chapter)\s+(\d+)[\s.:—-]+(.+?)(?:\s+(\d{1,4}))?\s*$/i,
+    /^(\d+(?:\.\d+)*)[\s.:—-]+(.+?)(?:\s+(\d{1,4}))?\s*$/,
+    /^(sezione|section|par\.?|paragrafo)\s+(.+?)(?:\s+(\d{1,4}))?\s*$/i,
+  ];
+  const limit = Math.min(20, totalPages);
+  for (let i = 0; i < limit; i++) {
+    const text = pageIndex[i].raw;
+    if (!text) continue;
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3 && l.length < 120);
+    for (const line of lines) {
+      for (const p of patterns) {
+        const m = line.match(p);
+        if (m) {
+          const title = (m[3] || m[2] || m[0]).trim();
+          let pageNum = parseInt(m[4] || m[3] || m[2]);
+          if (pageNum && pageNum > 0 && pageNum <= totalPages) {
+            const level = line.match(/^\d+\.\d+\.\d+/) ? 3 : line.match(/^\d+\.\d+/) ? 2 : 1;
+            tocEntries.push({ title, page: pageNum, level });
+          }
+          break;
+        }
+      }
+    }
+  }
+  const seen = new Set();
+  tocEntries = tocEntries.filter(e => {
+    const k = e.title + '|' + e.page;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
+function renderTOC() {
+  const box = document.getElementById('toc-list');
+  if (!tocEntries.length) {
+    box.innerHTML = '<div class="empty">Nessun sommario trovato nel PDF.</div>';
+    return;
+  }
+  box.innerHTML = tocEntries.map(e => `
+    <div class="toc-item level-${e.level}" onclick="openPDFPage(${e.page})">
+      <div class="title">${escapeHtml(e.title)}</div>
+      <div class="page">Pagina ${e.page}</div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===================== INDICIZZAZIONE PDF =====================
+async function indexPDF(file) {
+  if (isBusy) {
+    setStatus('⚠️ Operazione già in corso');
+    return;
+  }
+  
+  setButtonsBusy(true);
+  showProgressModal({
+    icon: '📄',
+    title: 'Lettura PDF',
+    percent: 0,
+    message: 'Caricamento file in memoria...'
+  });
+  
+  try {
+    const buf = await file.arrayBuffer();
+    
+    // Controlla spazio disponibile
+    if (navigator.storage && navigator.storage.estimate) {
+      const est = await navigator.storage.estimate();
+      const available = est.quota - est.usage;
+      if (buf.byteLength > available * 0.8) {
+        hideProgressModal();
+        setButtonsBusy(false);
+        alert('Spazio insufficiente nel browser. Il PDF è troppo grande.');
+        return;
+      }
+    }
+    
+    updateProgressModal(5, 'Salvataggio nel browser...');
+    await dbSet('pdfBlob', buf);
+    pdfBuffer = buf;
+    
+    updateProgressModal(10, 'Apertura documento PDF...');
+    pdfDoc = await pdfjsLib.getDocument({data: buf.slice(0)}).promise;
+    totalPages = pdfDoc.numPages;
+    pageIndex = [];
+
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const tc = await page.getTextContent();
+      const raw = tc.items.map(it => it.str).join(' ');
+      pageIndex.push({ page: i, text: normalize(raw), raw });
+      
+      // Aggiorna progresso (dal 10% al 90%)
+      const percent = 10 + (i / totalPages) * 80;
+      updateProgressModal(percent, `Indicizzazione pagina ${i} di ${totalPages}...`);
+    }
+
+    updateProgressModal(92, 'Salvataggio indice...');
+    await dbSet('index', pageIndex);
+    await dbSet('totalPages', totalPages);
+    await dbSet('pdfSize', buf.byteLength);
+    
+    updateProgressModal(95, 'Estrazione sommario...');
+    await extractTOC();
+    
+    updatePDFInfo();
+    await updateStorageInfo();
+
+    updateProgressModal(100, '✓ Completato!');
+    setTimeout(() => {
+      hideProgressModal();
+      setButtonsBusy(false);
+      setStatus(`✓ PDF salvato: ${totalPages} pagine`);
+      document.getElementById('search-input').focus();
+    }, 600);
+    
+  } catch (err) {
+    hideProgressModal();
+    setButtonsBusy(false);
+    setStatus('❌ Errore: ' + err.message);
+    console.error(err);
+    alert('Errore durante l\'elaborazione del PDF:\n' + err.message);
+  }
+}
+
+function updatePDFInfo() {
+  const size = localStorage.getItem('gg_pdf_size');
+  if (size) {
+    const sizeMB = (parseInt(size) / 1024 / 1024).toFixed(1);
+    document.getElementById('pdf-status').textContent = '✓ Salvato nel browser';
+    document.getElementById('pdf-size').textContent = sizeMB + ' MB';
+    document.getElementById('pdf-pages').textContent = totalPages;
+    document.getElementById('info-pages').textContent = totalPages;
+  } else {
+    document.getElementById('pdf-status').textContent = 'Nessun PDF caricato';
+    document.getElementById('pdf-size').textContent = '-';
+    document.getElementById('pdf-pages').textContent = '-';
+  }
+}
+
+// ===================== LOGO MOTO =====================
+async function loadLogo() {
+  const logoData = await dbGet('motoLogo');
+  const img = document.getElementById('logo-watermark');
+  if (logoData) {
+    img.src = logoData;
+    img.style.display = 'block';
+    document.getElementById('logo-status').textContent = '✓ Logo caricato';
+  } else {
+    img.style.display = 'none';
+    img.src = '';
+    document.getElementById('logo-status').textContent = 'Nessun logo caricato';
+  }
+}
+
+document.getElementById('logo-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  // Controlla che sia un'immagine
+  if (!file.type.startsWith('image/')) {
+    alert('Seleziona un file immagine (PNG, JPG, SVG).');
+    return;
+  }
+  
+  // Controlla dimensione (max 2 MB)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Immagine troppo grande. Massimo 2 MB.');
+    return;
+  }
+  
+  // Converti in base64
+  const reader = new FileReader();
+  reader.onload = async function(ev) {
+    const base64 = ev.target.result;
+    try {
+      await dbSet('motoLogo', base64);
+      await loadLogo();
+      setStatus('✓ Logo salvato');
+    } catch(err) {
+      alert('Errore nel salvataggio: ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // reset per poter ricaricare lo stesso file
+});
+
+async function removeLogo() {
+  if (!confirm('Rimuovere il logo?')) return;
+  await dbDelete('motoLogo');
+  await loadLogo();
+  setStatus('✓ Logo rimosso');
+}
+
+async function loadIndex() {
+  const idx = await dbGet('index');
+  const tp = await dbGet('totalPages');
+  const toc = await dbGet('toc');
+  const pdfBlob = await dbGet('pdfBlob');
+  const pdfSize = await dbGet('pdfSize');
+  
+  if (idx && idx.length) {
+    pageIndex = idx;
+    totalPages = tp || idx.length;
+    tocEntries = toc || [];
+    document.getElementById('info-pages').textContent = totalPages;
+    document.getElementById('info-toc').textContent = tocEntries.length;
+    renderTOC();
+    
+    if (pdfBlob) {
+      pdfBuffer = pdfBlob;
+      localStorage.setItem('gg_pdf_size', pdfSize || pdfBlob.byteLength);
+      
+      // Mostra modal durante caricamento PDF da cache
+      setButtonsBusy(true);
+      showProgressModal({
+        icon: '📚',
+        title: 'Caricamento dalla cache',
+        percent: null,
+        message: 'Preparazione PDF...',
+        indeterminate: true
+      });
+      
+      try {
+        updateProgressModal(null, 'Apertura documento...');
+        pdfDoc = await pdfjsLib.getDocument({data: pdfBlob.slice(0)}).promise;
+        
+        updateProgressModal(null, 'Pronto!');
+        setTimeout(() => {
+          hideProgressModal();
+          setButtonsBusy(false);
+          setStatus(`✓ PDF caricato: ${totalPages} pagine`);
+        }, 400);
+      } catch(e) {
+        hideProgressModal();
+        setButtonsBusy(false);
+        console.warn('Errore caricamento PDF da cache', e);
+        setStatus('⚠️ PDF in cache ma non caricabile. Ricarica il PDF.');
+      }
+    } else {
+      setStatus(`Indice presente ma PDF mancante. Ricarica il PDF.`);
+    }
+    
+    updatePDFInfo();
+    return true;
+  }
+  return false;
+}
+
+async function removePDF() {
+  if (isBusy) {
+    setStatus('⚠️ Operazione in corso');
+    return;
+  }
+  if (!confirm('Rimuovere il PDF salvato? Dovrai ricaricarlo.')) return;
+  
+  setButtonsBusy(true);
+  showProgressModal({
+    icon: '🗑️',
+    title: 'Rimozione PDF',
+    percent: null,
+    message: 'Eliminazione dati...',
+    indeterminate: true
+  });
+  
+  try {
+    await dbDelete('pdfBlob');
+    await dbDelete('pdfSize');
+    localStorage.removeItem('gg_pdf_size');
+    pdfDoc = null;
+    pdfBuffer = null;
+    updatePDFInfo();
+    
+    setTimeout(() => {
+      hideProgressModal();
+      setButtonsBusy(false);
+      setStatus('✓ PDF rimosso');
+    }, 400);
+  } catch(err) {
+    hideProgressModal();
+    setButtonsBusy(false);
+    setStatus('❌ Errore: ' + err.message);
+  }
+}
+
+// ===================== RICERCA =====================
+function search(query) {
+  if (!pageIndex.length) return { results: [], terms: [] };
+  const keywords = extractKeywords(query);
+  if (!keywords.length) return { results: [], terms: [] };
+
+  const expanded = [];
+  keywords.forEach(k => expanded.push(...expandWithSynonyms(k)));
+  const uniqueTerms = [...new Set(expanded)];
+
+  const scores = [];
+  for (const entry of pageIndex) {
+    let score = 0;
+    const text = entry.text;
+    for (const term of uniqueTerms) {
+      const regex = new RegExp('\\b' + term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\w*', 'g');
+      const matches = text.match(regex);
+      if (matches) score += matches.length;
+      if (keywords.includes(term)) {
+        const words = text.split(/\s+/);
+        for (const w of words) {
+          if (w.length >= 3 && fuzzyMatch(term, w) > 0.7 && !text.includes(term)) {
+            score += 0.3;
+          }
+        }
+      }
+    }
+    if (score > 0) scores.push({ page: entry.page, score, raw: entry.raw });
+  }
+
+  scores.sort((a,b) => b.score - a.score);
+  return { results: scores.slice(0, 30), terms: uniqueTerms };
+}
+
+// ===================== UI =====================
+let statusTimeout;
+function setStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(statusTimeout);
+  statusTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function setResultsContent(content) {
+  const box = document.getElementById('results');
+  let logo = document.getElementById('logo-watermark');
+  if (!logo) {
+    logo = document.createElement('img');
+    logo.id = 'logo-watermark';
+    logo.style.display = 'none';
+  }
+  box.innerHTML = '';
+  box.appendChild(logo);
+  box.insertAdjacentHTML('beforeend', content);
+}
+
+function renderResults(data) {
+  if (!data.results.length) {
+    setResultsContent('<div class="empty">Nessun risultato. Prova con termini diversi.</div>');
+    return;
+  }
+  const terms = data.terms;
+  const content = data.results.map(r => {
+    const snippet = buildSnippet(r.raw, terms);
+    return `<div class="result" onclick="openPDFPage(${r.page})">
+      <div class="page">Pagina ${r.page}<span class="tag">score ${r.score.toFixed(1)}</span></div>
+      <div class="snippet">${snippet}</div>
+    </div>`;
+  }).join('');
+  setResultsContent(content);
+}
+
+function buildSnippet(text, terms) {
+  if (!text) return '<em style="color:var(--muted)">(nessun testo)</em>';
+  const lower = text.toLowerCase();
+  let bestPos = 0, bestCount = 0;
+  for (let i = 0; i < lower.length - 50; i += 50) {
+    const chunk = lower.substr(i, 300);
+    let c = 0;
+    terms.forEach(t => { if (chunk.includes(t)) c++; });
+    if (c > bestCount) { bestCount = c; bestPos = i; }
+  }
+  const start = Math.max(0, bestPos - 40);
+  const end = Math.min(text.length, bestPos + 260);
+  let snippet = (start > 0 ? '…' : '') + text.substring(start, end) + (end < text.length ? '…' : '');
+  terms.forEach(t => {
+    const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+    snippet = snippet.replace(re, '<mark>$1</mark>');
+  });
+  return snippet;
+}
+
+// ===================== PDF VIEWER =====================
+async function renderPage(num) {
+  if (!pdfDoc) return;
+  const page = await pdfDoc.getPage(num);
+  const wrap = document.getElementById('pdf-canvas-wrap');
+  wrap.innerHTML = '<canvas id="c"></canvas>';
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  
+  const screenWidth = window.innerWidth - 20;
+  const viewport1 = page.getViewport({ scale: 1 });
+  const scale = screenWidth / viewport1.width;
+  const viewport = page.getViewport({ scale });
+  
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  document.getElementById('page-info').textContent = `${num} / ${totalPages}`;
+  wrap.scrollTop = 0;
+}
+
+async function openPDFPage(num) {
+  if (num < 1 || num > totalPages || !pdfDoc) {
+    if (!pdfDoc) alert('Carica prima il PDF');
+    return;
+  }
+  currentPage = num;
+  document.getElementById('pdf-viewer').classList.add('active');
+  await renderPage(num);
+}
+
+function closePDF() {
+  document.getElementById('pdf-viewer').classList.remove('active');
+}
+
+async function gotoPage(num) {
+  if (num < 1 || num > totalPages || !pdfDoc) return;
+  currentPage = num;
+  await renderPage(num);
+}
+
+// ===================== LLM (GROQ) =====================
+function loadLLMSettings() {
+  const k = localStorage.getItem('gg_llm_key') || '';
+  const m = localStorage.getItem('gg_llm_model');
+  document.getElementById('llm-key').value = k;
+  
+  // Se c'è un modello salvato, usalo. Altrimenti lascia il default (primo del select)
+  if (m) {
+    document.getElementById('llm-model').value = m;
+  }
+  // Se m è null/undefined, il select mantiene il primo option come default
+}
+function saveLLMSettings() {
+  localStorage.setItem('gg_llm_key', document.getElementById('llm-key').value.trim());
+  localStorage.setItem('gg_llm_model', document.getElementById('llm-model').value);
+  setStatus('✓ Impostazioni salvate');
+}
+
+async function askLLM() {
+  if (isBusy) {
+    setStatus('⚠️ Operazione già in corso');
+    return;
+  }
+  
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) { alert('Scrivi prima una domanda nella barra di ricerca.'); return; }
+  const apiKey = localStorage.getItem('gg_llm_key');
+  if (!apiKey) {
+    if (confirm('Devi configurare la API key Groq. Aprire le impostazioni?')) {
+      document.querySelector('[data-tab="settings"]').click();
+    }
+    return;
+  }
+  if (!pageIndex.length) { alert('Carica prima un PDF.'); return; }
+
+  setButtonsBusy(true);
+  showProgressModal({
+    icon: '💬',
+    title: 'Consultazione esperto',
+    percent: null,
+    message: 'Ricerca passaggi rilevanti...',
+    indeterminate: true
+  });
+
+  const model = localStorage.getItem('gg_llm_model') || document.getElementById('llm-model').value;
+  const data = search(query);
+  const topSnippets = data.results.slice(0, 6);
+
+  if (!topSnippets.length) {
+    hideProgressModal();
+    setButtonsBusy(false);
+    const b = document.getElementById('llm-answer');
+    b.style.display = 'block';
+    b.innerHTML = 'Nessun passaggio del manuale trovato per la tua domanda.';
+    return;
+  }
+
+  const context = topSnippets.map(r => `--- PAGINA ${r.page} ---\n${r.raw.substring(0, 1500)}`).join('\n\n');
+
+  const systemPrompt = `Sei un meccanico esperto che aiuta l'utente a consultare il manuale di officina della sua moto. 
+Rispondi in italiano in modo chiaro e pratico. 
+Basati SOLO sugli estratti del manuale forniti. 
+Cita SEMPRE il numero di pagina tra parentesi quando menzioni un'informazione, usando il formato [p.XXX] (es. [p.42]).
+Se negli estratti non c'è la risposta, dillo chiaramente e suggerisci termini alternativi da cercare.
+Struttura la risposta con elenchi puntati quando utile. Sii conciso ma completo.`;
+
+  const userPrompt = `Domanda dell'utente: "${query}"
+
+Termini cercati (con sinonimi): ${data.terms.join(', ')}
+
+Estratti rilevanti dal manuale:
+${context}
+
+Rispondi alla domanda citando le pagine.`;
+
+  const answerBox = document.getElementById('llm-answer');
+  
+  try {
+    updateProgressModal(null, 'Invio domanda a Groq...');
+    
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3
+      })
+    });
+    
+    updateProgressModal(null, 'Elaborazione risposta...');
+    
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`API ${res.status}: ${err.substring(0,200)}`);
+    }
+    const json = await res.json();
+    const text = json.choices[0].message.content;
+    
+    updateProgressModal(null, 'Formattazione...');
+    answerBox.style.display = 'block';
+    answerBox.innerHTML = formatLLMAnswer(text);
+    
+    setTimeout(() => {
+      hideProgressModal();
+      setButtonsBusy(false);
+      setStatus('✓ Risposta generata');
+      // Scroll alla risposta
+      answerBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+    
+  } catch(err) {
+    hideProgressModal();
+    setButtonsBusy(false);
+    answerBox.style.display = 'block';
+    answerBox.innerHTML = '❌ Errore: ' + escapeHtml(err.message);
+    setStatus('Errore Groq: ' + err.message);
+  }
+}
+
+function formatLLMAnswer(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/\[p\.(\d+)\]/g, (m, n) => 
+    `<span class="src" onclick="openPDFPage(${n})">[p.${n}]</span>`);
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  return html;
+}
+
+async function testLLM() {
+  if (isBusy) {
+    setStatus('⚠️ Operazione in corso');
+    return;
+  }
+  
+  const apiKey = document.getElementById('llm-key').value.trim();
+  const model = document.getElementById('llm-model').value;
+  if (!apiKey) { alert('Inserisci la API key.'); return; }
+
+  setButtonsBusy(true);
+  showProgressModal({
+    icon: '🧪',
+    title: 'Test connessione',
+    percent: null,
+    message: 'Contatto Groq...',
+    indeterminate: true
+  });
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'Rispondi solo OK se mi leggi.' }],
+        max_tokens: 10
+      })
+    });
+    
+    updateProgressModal(null, 'Verifica risposta...');
+    
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).substring(0,200)}`);
+    const json = await res.json();
+    const reply = json.choices?.[0]?.message?.content || '(nessuna risposta)';
+    
+    setTimeout(() => {
+      hideProgressModal();
+      setButtonsBusy(false);
+      alert('✅ Connessione OK!\n\nRisposta: ' + reply);
+      setStatus('✓ Test riuscito');
+    }, 300);
+  } catch(err) {
+    hideProgressModal();
+    setButtonsBusy(false);
+    alert('❌ Connessione fallita:\n\n' + err.message);
+    setStatus('Test fallito');
+  }
+}
+
+// ===================== EVENTI =====================
+document.getElementById('file-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  // Reset input file per permettere di ricaricare lo stesso file
+  e.target.value = '';
+  await indexPDF(file);
+});
+
+let searchTimeout;
+document.getElementById('search-input').addEventListener('input', e => {
+  clearTimeout(searchTimeout);
+  const q = e.target.value.trim();
+  if (!q) {
+    setResultsContent('<div class="empty">Scrivi una parola o descrivi il problema...</div>');
+    document.getElementById('llm-answer').style.display = 'none';
+    return;
+  }
+  searchTimeout = setTimeout(() => {
+    const data = search(q);
+    renderResults(data);
+    setStatus(`${data.results.length} risultati`);
+  }, 150);
+});
+
+document.getElementById('search-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const first = document.querySelector('.result');
+    if (first) first.click();
+  }
+});
+
+// Blocca il tap sul modal di progresso (evita chiusura accidentale)
+document.getElementById('progress-modal').addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+
+// ===================== AVVIO =====================
+(async () => {
+  loadLLMSettings();
+  
+  // Rileva iOS per mostrare warning
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    document.getElementById('ios-warning').style.display = 'block';
+  }
+  
+  const loaded = await loadIndex();
+  if (loaded && pdfDoc) {
+    setResultsContent('<div class="empty">✓ Pronto. Scrivi una ricerca ↑</div>');
+  } else if (loaded) {
+    setResultsContent('<div class="empty">Indice presente ma PDF mancante. Carica il PDF.</div>');
+  }
+  
+  await updateStorageInfo();
+  await loadLogo();
+})();
+</script>
+</body>
+</html>
